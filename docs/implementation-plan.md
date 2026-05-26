@@ -1,6 +1,7 @@
 # Disaggregated Key-Value Store: Implementation Plan
 
 **Intern:** Sagar Gupta
+
 **Duration:** 25 May 2026 – 24 July 2026 (8 weeks)  
 
 ---
