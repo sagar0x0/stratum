@@ -58,7 +58,7 @@ func (sl *SkipList) Put(key, value []byte) {
 
 	current = current.forward[0]
 
-	if current != nil && bytes.Compare(current.key, key) == 0 {
+	if current != nil && bytes.Equal(current.key, key) {
 		oldMem := len(current.value)
 		current.value = value
 		atomic.AddInt64(&sl.memSize, int64(len(value)-oldMem))
@@ -100,7 +100,7 @@ func (sl *SkipList) Get(key []byte) ([]byte, bool) {
 	}
 
 	current = current.forward[0]
-	if current != nil && bytes.Compare(current.key, key) == 0 {
+	if current != nil && bytes.Equal(current.key, key) {
 		return current.value, true
 	}
 	return nil, false
