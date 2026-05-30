@@ -1,0 +1,55 @@
+# Binaries and compiled output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories (managed by go mod)
+vendor/
+
+# Build cache
+.cache/
+
+# Environment / secrets
+.env
+.env.*
+*.local
+
+# Editor and IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Scratch / draft files
+test.md
+write_arch.png
+
+# Profiling
+*.prof
+cpu.out
+mem.out
