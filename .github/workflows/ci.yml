@@ -15,12 +15,14 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version-file: 'go.mod'
+        cache: true
         
     - name: Run lint
       uses: golangci/golangci-lint-action@v6
       with:
-        version: latest
+        version: v1.64.8
+        args: --timeout=5m
         
     - name: Run tests with coverage
       run: make test-cover
