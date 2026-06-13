@@ -41,7 +41,7 @@ func TestOneMillion(t *testing.T) {
 		key := []byte(fmt.Sprintf("key-%08d", i))
 		val := []byte(fmt.Sprintf("val-%08d", i))
 		
-		mt.Put(key, val)
+		_ = mt.Put(key, val)
 
 		if (i+1)%flushThreshold == 0 {
 			err := tree.Flush(mt)

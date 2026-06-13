@@ -43,7 +43,7 @@ func benchmarkLSMTree(b *testing.B, random bool, readPercent int) {
 		if isRead {
 			_, _, _ = tree.Get(key)
 		} else {
-			mt.Put(key, val)
+			_ = mt.Put(key, val)
 			if mt.ShouldFlush() {
 				b.StopTimer()
 				_ = tree.Flush(mt)

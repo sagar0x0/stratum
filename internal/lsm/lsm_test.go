@@ -25,7 +25,7 @@ func TestFlushToL0(t *testing.T) {
 	defer tree.Close()
 
 	mt := memtable.NewMemTable(1024 * 1024)
-	mt.Put([]byte("key1"), []byte("val1"))
+	_ = mt.Put([]byte("key1"), []byte("val1"))
 	mt.Put([]byte("key2"), []byte("val2"))
 
 	err = tree.Flush(mt)

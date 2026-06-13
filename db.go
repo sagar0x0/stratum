@@ -110,7 +110,9 @@ func (db *DB) rotateWAL() error {
 
 	walPath := filepath.Join(db.opts.Dir, "wal.log")
 	rotatedPath := filepath.Join(db.opts.Dir, fmt.Sprintf("wal_%d.log", time.Now().UnixNano()))
-	os.Rename(walPath, rotatedPath)
+	if err := os.Rename(walPath, rotatedPath); err != nil {
+		return err
+	}
 
 	w, err := wal.NewWriter(walPath)
 	if err != nil {
