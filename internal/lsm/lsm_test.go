@@ -26,7 +26,7 @@ func TestFlushToL0(t *testing.T) {
 
 	mt := memtable.NewMemTable(1024 * 1024)
 	_ = mt.Put([]byte("key1"), []byte("val1"))
-	mt.Put([]byte("key2"), []byte("val2"))
+	_ = mt.Put([]byte("key2"), []byte("val2"))
 
 	err = tree.Flush(mt)
 	require.NoError(t, err)
