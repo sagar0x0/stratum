@@ -2,11 +2,14 @@ package stratum
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/sagar0x0/stratum/internal/lsm"
 	"github.com/sagar0x0/stratum/internal/memtable"
 	"github.com/sagar0x0/stratum/internal/wal"
 )
@@ -21,6 +24,7 @@ type DB struct {
 	wal     *wal.Writer
 	gc      *wal.GroupCommitter
 	manager *memtable.Manager
+	lsm     *lsm.LSMTree
 
 	mu     sync.RWMutex
 	closed bool
@@ -50,8 +54,36 @@ func Open(opts Options) (*DB, error) {
 	gc := wal.NewGroupCommitter(w, gcOpts...)
 	gc.Start()
 
+	lsmOpts := lsm.LSMOptions{
+		Dir:              opts.Dir,
+		BlockSize:        opts.SSTableBlockSize,
+		BloomBitsPerKey:  opts.BloomBitsPerKey,
+		BlockCacheSize:   opts.BlockCacheSize,
+		CompactionRateMB: opts.CompactionRateMB,
+		L0StallTrigger:   opts.L0StallTrigger,
+	}
+	
+	lsmTree, err := lsm.NewLSMTree(lsmOpts)
+	if err != nil {
+		return nil, err
+	}
+	lsmTree.StartCompaction()
+
+	db := &DB{
+		opts: opts,
+		wal:  w,
+		gc:   gc,
+		lsm:  lsmTree,
+	}
+
 	flushFn := func(mt *memtable.MemTable) error {
-		time.Sleep(100 * time.Millisecond)
+		if err := db.lsm.Flush(mt); err != nil {
+			return err
+		}
+
+		if err := db.rotateWAL(); err != nil {
+			log.Printf("failed to rotate WAL: %v", err)
+		}
 		return nil
 	}
 
@@ -64,13 +96,38 @@ func Open(opts Options) (*DB, error) {
 	}
 
 	manager.Start()
+	db.manager = manager
 
-	return &DB{
-		opts:    opts,
-		wal:     w,
-		gc:      gc,
-		manager: manager,
-	}, nil
+	return db, nil
+}
+
+func (db *DB) rotateWAL() error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	db.gc.Stop()
+	db.wal.Close()
+
+	walPath := filepath.Join(db.opts.Dir, "wal.log")
+	rotatedPath := filepath.Join(db.opts.Dir, fmt.Sprintf("wal_%d.log", time.Now().UnixNano()))
+	os.Rename(walPath, rotatedPath)
+
+	w, err := wal.NewWriter(walPath)
+	if err != nil {
+		return err
+	}
+	db.wal = w
+
+	gcOpts := []wal.GroupCommitOption{
+		wal.WithMaxBatchSize(db.opts.WALMaxBatchSize),
+		wal.WithMaxBatchDelay(db.opts.WALMaxBatchDelay),
+	}
+	db.gc = wal.NewGroupCommitter(w, gcOpts...)
+	db.gc.Start()
+
+	os.Remove(rotatedPath)
+
+	return nil
 }
 
 func (db *DB) Put(key, value []byte) error {
@@ -85,16 +142,32 @@ func (db *DB) Put(key, value []byte) error {
 
 func (db *DB) Get(key []byte) ([]byte, error) {
 	db.mu.RLock()
-	defer db.mu.RUnlock()
 	if db.closed {
+		db.mu.RUnlock()
 		return nil, ErrClosed
 	}
+	db.mu.RUnlock()
 
 	val, found := db.manager.Get(key)
-	if !found || val == nil {
-		return nil, ErrNotFound
+	if found {
+		if val == nil {
+			return nil, ErrNotFound
+		}
+		return val, nil
 	}
-	return val, nil
+
+	val, found, err := db.lsm.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		if val == nil {
+			return nil, ErrNotFound
+		}
+		return val, nil
+	}
+
+	return nil, ErrNotFound
 }
 
 func (db *DB) Delete(key []byte) error {
@@ -117,5 +190,6 @@ func (db *DB) Close() error {
 
 	db.manager.Stop()
 	db.gc.Stop()
-	return db.wal.Close()
+	db.wal.Close()
+	return db.lsm.Close()
 }
