@@ -23,6 +23,7 @@ func benchmarkLSMTree(b *testing.B, random bool, readPercent int) {
 	if err != nil {
 		b.Fatalf("Failed to create LSM tree: %v", err)
 	}
+	tree.StartCompaction()
 	defer tree.Close()
 
 	mt := memtable.NewMemTable(4 * 1024 * 1024)

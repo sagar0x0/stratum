@@ -117,7 +117,7 @@ func (l *LSMTree) Flush(mt *memtable.MemTable) error {
 			smallest = append([]byte(nil), it.Key()...)
 		}
 		largest = append([]byte(nil), it.Key()...)
-		
+
 		if err := w.Add(it.Key(), it.Value()); err != nil {
 			w.Close()
 			return err
@@ -206,7 +206,7 @@ func (l *LSMTree) Get(key []byte) ([]byte, bool, error) {
 		for left <= right {
 			mid := left + (right-left)/2
 			f := files[mid]
-			
+
 			if bytes.Compare(key, f.SmallestKey) >= 0 && bytes.Compare(key, f.LargestKey) <= 0 {
 				target = &f
 				break
@@ -291,7 +291,7 @@ func (l *LSMTree) doCompaction() {
 				}
 			}
 		}
-		
+
 		// Add new readers
 		version = l.manifest.Current()
 		for _, f := range version.Levels[c.OutputLevel] {

@@ -17,8 +17,8 @@ type Iterator interface {
 
 // iterHeapItem is an item in the min-heap.
 type iterHeapItem struct {
-	it    Iterator
-	idx   int // To ensure stable sort for iterators with same key
+	it  Iterator
+	idx int // To ensure stable sort for iterators with same key
 }
 
 // iterHeap implements heap.Interface for a min-heap of iterators.
@@ -46,6 +46,8 @@ func (h *iterHeap) Pop() interface{} {
 }
 
 // MergeIterator merges multiple Iterators into a single sorted Iterator.
+// It deduplicates keys: for duplicate keys the value from the lowest-index
+// (newest) iterator wins.
 type MergeIterator struct {
 	iters []Iterator
 	hp    *iterHeap
@@ -74,7 +76,7 @@ func (m *MergeIterator) SeekToFirst() {
 			heap.Push(m.hp, iterHeapItem{it: it, idx: i})
 		}
 	}
-	m.advance()
+	m.findSmallest()
 }
 
 // Seek moves to the first key >= target.
@@ -86,7 +88,21 @@ func (m *MergeIterator) Seek(target []byte) {
 			heap.Push(m.hp, iterHeapItem{it: it, idx: i})
 		}
 	}
-	m.advance()
+	m.findSmallest()
+}
+
+// findSmallest sets currentKey/currentVal from the heap top, without
+// advancing any iterator. This is used after initial positioning.
+func (m *MergeIterator) findSmallest() {
+	if m.hp.Len() == 0 {
+		m.valid = false
+		return
+	}
+
+	top := (*m.hp)[0]
+	m.currentKey = append(m.currentKey[:0], top.it.Key()...)
+	m.currentVal = top.it.Value()
+	m.valid = true
 }
 
 // Next moves to the next unique key.
@@ -94,51 +110,19 @@ func (m *MergeIterator) Next() {
 	if !m.valid {
 		return
 	}
-	// The current key has been consumed.
-	// Since there could be duplicate keys from other iterators in the heap,
-	// we pop and advance them if they match the current key.
-	// Actually, advance() already handles dropping duplicates.
-	// But to get to the *next* key, we just pop the current one.
-	
-	// Wait, the item currently on top of the heap is the one we returned.
-	if m.hp.Len() > 0 {
-		item := heap.Pop(m.hp).(iterHeapItem)
-		item.it.Next()
-		if item.it.Valid() {
-			heap.Push(m.hp, item)
-		}
-	}
-	m.advance()
-}
 
-func (m *MergeIterator) advance() {
-	if m.hp.Len() == 0 {
-		m.valid = false
-		return
-	}
-
-	top := (*m.hp)[0]
-	m.currentKey = top.it.Key()
-	m.currentVal = top.it.Value()
-	m.valid = true
-
-	// Drop shadowed versions of the same key
+	// Pop and advance ALL iterators whose current key equals m.currentKey.
+	// This ensures deduplication: if 3 iterators all have "keyA", we skip
+	// past "keyA" in all of them before reading the next smallest key.
 	for m.hp.Len() > 0 && bytes.Equal((*m.hp)[0].it.Key(), m.currentKey) {
-		if (*m.hp)[0].idx == top.idx {
-			// This is the top item itself, don't advance it yet.
-			// Next() will advance it.
-			// Wait, the top item is at index 0. We shouldn't advance it in advance()
-			// if it's the exact same iterator.
-			break
-		}
-
-		// It's an older version from a different iterator. Advance it.
 		item := heap.Pop(m.hp).(iterHeapItem)
 		item.it.Next()
 		if item.it.Valid() {
 			heap.Push(m.hp, item)
 		}
 	}
+
+	m.findSmallest()
 }
 
 // Valid returns true if the iterator is currently valid.

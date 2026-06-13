@@ -253,7 +253,13 @@ func (m *Manifest) applyEditToMemory(edit *VersionEdit) {
 	// Process additions
 	for _, af := range edit.AddedFiles {
 		newV.Levels[af.Level] = append(newV.Levels[af.Level], af)
-		// Usually we'd sort the level here, but we'll let level.go handle it
+	}
+
+	// Sort levels >= 1 since they must be non-overlapping and ordered for binary search
+	for i := 1; i < MaxLevels; i++ {
+		if len(newV.Levels[i]) > 1 {
+			SortBySmallestKey(newV.Levels[i])
+		}
 	}
 
 	if edit.NextFileNum > m.nextFileNum {

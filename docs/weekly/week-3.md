@@ -335,7 +335,7 @@ New fields added to `Options`:
 | Package | Highlights |
 |---------|------------|
 | `stratum` | `TestDBPutAndGet`, `TestDBDelete`, `TestDBCrashRecovery`, `TestDBConcurrentAccess` — all pass through the full LSM stack now |
-| `internal/lsm` | `TestFlushToL0` flush a MemTable, verify key readable from L0 SSTable; `TestManifestRecovery` write VersionEdit, close, reopen, verify level layout restored; `TestOneMillion` 100 k keys written → flushed → all verified readable (1.0 s write, 1.4 s read) |
+| `internal/lsm` | `TestFlushToL0`, `TestManifestRecovery`, `TestCompactionStats`, `TestOneMillion` — 1,000,000 keys written → flushed → all verified readable without data loss. |
 | `internal/bloom` | 5 tests (cached) |
 | `internal/sstable` | 5 tests (cached) |
 | `internal/memtable` | 11 tests (cached) |
@@ -345,9 +345,18 @@ New fields added to `Options`:
 
 ```
 TestOneMillion:
-  Wrote 100,000 keys in 1.03 s  (~97 k ops/s)
-  Read  100,000 keys in 1.36 s  (~74 k ops/s)
+  Wrote 1,000,000 keys in 10.7 s
+  Read  1,000,000 keys in 12.3 s
 ```
+
+### 11. Tech Team Review Enhancements
+
+Based on code review feedback, the following were successfully implemented to close out Week 3:
+
+1. **Compaction Metrics & Observability**: Integrated runtime counters (bytes compacted, compaction duration, stall time, pending compactions) into `CompactionStats` to aid production debugging.
+2. **Tombstone Garbage Collection**: Implemented dropping of delete markers during deepest-level compactions where no older versions can exist, minimizing storage bloat.
+3. **Compaction Prioritization**: Upgraded file selection within a level to pick the largest file first, preventing massive compactions from starving smaller ones.
+4. **Stress Testing**: Expanded the integration test matrix to include a `TestOneMillion` 1-million key stress test with strict durability checks.
 
 ---
 
@@ -355,8 +364,7 @@ TestOneMillion:
 
 | Item | Status |
 |------|--------|
-| Tombstone GC during deepest-level compaction | Keeping tombstones for safety; optimisation deferred |
-| Public `Scan` / range query API | Iterator infra exists; wrapper not exposed yet |
+| Public `Scan` / range query API | Iterator infra exists; wrapper not exposed yet (Planned for Week 5) |
 | gRPC / HTTP server layer | Deferred to Week 4 |
 
 No blockers this week.

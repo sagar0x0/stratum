@@ -30,23 +30,25 @@ func TestOneMillion(t *testing.T) {
 
 	tree, err := NewLSMTree(opts)
 	require.NoError(t, err)
+	tree.StartCompaction()
 
 	const numKeys = 1000000
 	const flushThreshold = 50000
 
-	mt := memtable.NewMemTable(2 * 1024 * 1024)
+	mt := memtable.NewMemTable(8 * 1024 * 1024)
 
 	start := time.Now()
 	for i := 0; i < numKeys; i++ {
 		key := []byte(fmt.Sprintf("key-%08d", i))
 		val := []byte(fmt.Sprintf("val-%08d", i))
 		
-		_ = mt.Put(key, val)
+		err := mt.Put(key, val)
+		require.NoError(t, err, "memtable put failed, maybe capacity is too small")
 
 		if (i+1)%flushThreshold == 0 {
 			err := tree.Flush(mt)
 			require.NoError(t, err)
-			mt = memtable.NewMemTable(2 * 1024 * 1024)
+			mt = memtable.NewMemTable(8 * 1024 * 1024)
 		}
 	}
 

@@ -22,6 +22,7 @@ func TestFlushToL0(t *testing.T) {
 
 	tree, err := NewLSMTree(opts)
 	require.NoError(t, err)
+	tree.StartCompaction()
 	defer tree.Close()
 
 	mt := memtable.NewMemTable(1024 * 1024)
