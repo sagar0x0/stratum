@@ -1,5 +1,7 @@
 package lsm
 
+import "time"
+
 // write_stall logic is primarily state tracking inside the LSMTree.
 // We put the methods here to keep the files organized.
 
@@ -24,8 +26,14 @@ func (l *LSMTree) WaitForStall() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	start := time.Now()
+	stalled := false
 	for l.stalled {
+		stalled = true
 		l.stallCond.Wait()
+	}
+	if stalled {
+		l.stats.RecordStall(time.Since(start))
 	}
 }
 

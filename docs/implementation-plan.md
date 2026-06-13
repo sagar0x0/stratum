@@ -195,16 +195,18 @@ SSTables are written with a footer containing the index block offset and Bloom f
 
 **Deliverables:**
 - Leveled compaction: L0 → L1 with size-ratio trigger, L1+ with overlapping-range merge
-- Compaction picker: selects candidate SSTables based on level size ratios and key-range overlap
+- Compaction picker: selects candidate SSTables based on level size ratios and key-range overlap, with size-based and age-based file prioritization within a level to prevent large compactions from monopolizing background resources
 - Compaction executor: multi-way merge of input SSTables, produces new SSTables, atomically updates the manifest
+- Tombstone garbage collection: drop delete markers during deepest-level compaction where no older version can exist below
 - Manifest file: tracks the current set of SSTables per level, supports atomic swaps via versioned manifest records
 - Rate limiter on compaction I/O to prevent background work from starving foreground reads
 - Write stall logic: back-pressure when L0 file count exceeds threshold
+- Compaction metrics and observability: track bytes compacted, compaction duration, stall time, and pending compaction count for production diagnostics
 - Benchmarks: sequential and random write throughput, read latency percentiles (p50, p99), write amplification factor
 - Integration test: write 1M keys, trigger multiple compaction cycles, verify all keys are readable and correct
 
 **Technical Detail:**  
-Compaction follows RocksDB's leveled strategy: L0 files are flushed MemTables (overlapping key ranges), L1+ files are non-overlapping within a level. The size ratio between adjacent levels is 10x. Compaction priority is determined by a score = (level_size / target_size), and the level with the highest score is compacted first. The manifest is a write-ahead log of `VersionEdit` records; recovery replays this log to reconstruct the level layout.
+Compaction follows RocksDB's leveled strategy: L0 files are flushed MemTables (overlapping key ranges), L1+ files are non-overlapping within a level. The size ratio between adjacent levels is 10x. Compaction priority is determined by a score = (level_size / target_size), and the level with the highest score is compacted first. Within a level, file selection uses size-based priority (largest file first) to avoid small compactions blocking large ones, with age-based fallback for files that haven't been compacted within a configurable window. Tombstone markers are dropped when compacting at the deepest occupied level, since no older version can exist below. Compaction metrics (bytes compacted, duration, stall time, pending count) are exposed via an observable `CompactionStats` struct for runtime diagnostics. The manifest is a write-ahead log of `VersionEdit` records; recovery replays this log to reconstruct the level layout.
 
 ---
 
@@ -278,6 +280,8 @@ Each Raft replica co-locates with a storage node (same machine, different proces
   - Network partition isolating the leader → verify new leader is elected, stale leader's lease expires, no split-brain reads
   - Concurrent transactions under partition → verify snapshot isolation invariants hold
   - Storage node crash and recovery → verify WAL replay restores consistent state
+  - Crash during compaction → verify manifest consistency and no data loss on restart
+  - Long-running concurrency stress test (multi-million key dataset, sustained read/write mix over minutes) → verify durability and absence of data races
 - Chaos test harness: automated test runner that cycles through fault scenarios, collects operation histories, and runs the linearizability checker
 - Report: documented results for each fault scenario with pass/fail and latency impact
 

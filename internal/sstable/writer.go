@@ -207,3 +207,9 @@ func (w *Writer) Close() error {
 
 	return w.file.Close()
 }
+
+// Size returns the total size of the file written so far.
+// It is only accurate after Close() is called.
+func (w *Writer) Size() uint64 {
+	return w.offset + 48 // include the 48-byte footer added in Close
+}

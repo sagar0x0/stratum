@@ -39,6 +39,7 @@ type LSMTree struct {
 	stallCond *sync.Cond
 
 	compactor *CompactionExecutor
+	stats     *CompactionStats
 }
 
 // NewLSMTree creates and initializes a new LSMTree.
@@ -63,6 +64,7 @@ func NewLSMTree(opts LSMOptions) (*LSMTree, error) {
 		opts:      opts,
 		compactCh: make(chan struct{}, 1),
 		stopCh:    make(chan struct{}),
+		stats:     &CompactionStats{},
 	}
 	l.stallCond = sync.NewCond(&l.mu)
 
@@ -87,6 +89,11 @@ func NewLSMTree(opts LSMOptions) (*LSMTree, error) {
 	}
 
 	return l, nil
+}
+
+// Stats returns a snapshot of the current compaction statistics.
+func (l *LSMTree) Stats() CompactionStatsSnapshot {
+	return l.stats.Snapshot()
 }
 
 // Flush writes a MemTable to L0 as a new SSTable.
@@ -246,18 +253,33 @@ func (l *LSMTree) compactionLoop() {
 }
 
 func (l *LSMTree) doCompaction() {
+	l.stats.IncrPending()
+	defer l.stats.DecrPending()
+
 	for {
-		picker := &CompactionPicker{version: l.manifest.Current()}
+		version := l.manifest.Current()
+		picker := &CompactionPicker{version: version}
 		c := picker.PickCompaction()
 		if c == nil {
 			break // No more compactions needed
 		}
 
-		if err := l.compactor.Execute(c); err != nil {
+		maxOccupiedLevel := 0
+		for i := 0; i < MaxLevels; i++ {
+			if len(version.Levels[i]) > 0 {
+				maxOccupiedLevel = i
+			}
+		}
+
+		start := time.Now()
+		bytesIn, bytesOut, err := l.compactor.Execute(c, maxOccupiedLevel)
+		if err != nil {
 			log.Printf("Compaction failed: %v", err)
 			time.Sleep(1 * time.Second) // backoff
 			continue
 		}
+
+		l.stats.RecordCompaction(bytesIn, bytesOut, time.Since(start))
 
 		// Clean up old readers
 		l.mu.Lock()
@@ -271,7 +293,7 @@ func (l *LSMTree) doCompaction() {
 		}
 		
 		// Add new readers
-		version := l.manifest.Current()
+		version = l.manifest.Current()
 		for _, f := range version.Levels[c.OutputLevel] {
 			if _, ok := l.readers[f.FileNum]; !ok {
 				path := filepath.Join(l.dir, fmt.Sprintf("%06d.sst", f.FileNum))

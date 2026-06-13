@@ -67,9 +67,14 @@ func (p *CompactionPicker) PickCompaction() *Compaction {
 		}
 		c.InputFiles[1] = GetOverlappingFiles(p.version.Levels[1], smallest, largest)
 	} else {
-		// Pick one file from bestLevel (e.g., the largest or oldest)
-		// Here we just pick the first one for simplicity
-		c.InputFiles[0] = []FileMetadata{p.version.Levels[bestLevel][0]}
+		// Pick the largest file in the level to maximize compaction impact
+		largestFile := p.version.Levels[bestLevel][0]
+		for _, f := range p.version.Levels[bestLevel][1:] {
+			if f.FileSize > largestFile.FileSize {
+				largestFile = f
+			}
+		}
+		c.InputFiles[0] = []FileMetadata{largestFile}
 		smallest := c.InputFiles[0][0].SmallestKey
 		largest := c.InputFiles[0][0].LargestKey
 		
@@ -102,9 +107,12 @@ func NewCompactionExecutor(dbDir string, manifest *Manifest, cache *sstable.Bloc
 	}
 }
 
-// Execute performs the compaction and applies it to the manifest.
-func (e *CompactionExecutor) Execute(c *Compaction) error {
-	var iters []Iterator
+// Execute runs a compaction and updates the manifest.
+// Returns (bytesIn, bytesOut, error).
+func (e *CompactionExecutor) Execute(c *Compaction, maxOccupiedLevel int) (int64, int64, error) {
+	if c == nil || len(c.InputFiles[0]) == 0 {
+		return 0, 0, nil
+	}
 	var readers []*sstable.Reader
 
 	defer func() {
@@ -114,24 +122,33 @@ func (e *CompactionExecutor) Execute(c *Compaction) error {
 	}()
 
 	// Open readers for all input files
+	var iters []Iterator
 	for i := 0; i < 2; i++ {
 		for _, f := range c.InputFiles[i] {
 			path := filepath.Join(e.dbDir, fmt.Sprintf("%06d.sst", f.FileNum))
 			r, err := sstable.OpenReader(path, f.FileNum, e.cache)
 			if err != nil {
-				return err
+				return 0, 0, err
 			}
 			readers = append(readers, r)
 			iters = append(iters, r.NewIterator())
 		}
 	}
 
+	var totalBytesIn, totalBytesOut int64
+	for _, f := range c.InputFiles[0] {
+		totalBytesIn += int64(f.FileSize)
+	}
+	for _, f := range c.InputFiles[1] {
+		totalBytesIn += int64(f.FileSize)
+	}
+
 	mergeIter := NewMergeIterator(iters...)
 
+	var addedFiles []FileMetadata
 	var currentWriter *sstable.Writer
 	var currentFileNum uint64
 	var currentSmallest []byte
-	var addedFiles []FileMetadata
 	var entriesWritten uint64
 	var currentSize uint64
 
@@ -140,24 +157,14 @@ func (e *CompactionExecutor) Execute(c *Compaction) error {
 			if err := currentWriter.Close(); err != nil {
 				return err
 			}
-			
-			// Get file size
-			path := filepath.Join(e.dbDir, fmt.Sprintf("%06d.sst", currentFileNum))
-			stat, err := os.Stat(path)
-			if err != nil {
-				return err
-			}
-
-			// Using a copy of the last key we processed as largest
-			// The actual writer doesn't easily expose largest key directly after close without an accessor
-			// We track it during writes
+			fileSize := currentWriter.Size()
+			totalBytesOut += int64(fileSize)
 			
 			addedFiles = append(addedFiles, FileMetadata{
 				Level:       c.OutputLevel,
 				FileNum:     currentFileNum,
-				FileSize:    uint64(stat.Size()),
+				FileSize:    fileSize,
 				SmallestKey: currentSmallest,
-				// LargestKey will be filled below
 				NumEntries:  entriesWritten,
 			})
 			currentWriter = nil
@@ -171,16 +178,18 @@ func (e *CompactionExecutor) Execute(c *Compaction) error {
 		key := mergeIter.Key()
 		val := mergeIter.Value()
 
-		// Skip tombstones if this key doesn't exist in deeper levels
-		// For week 3 simplicity, we just keep tombstones unless it's the deepest level
-		// Actually, let's keep all tombstones for now to avoid accidental data resurrection
+		// Drop tombstones at the deepest occupied level -
+		// no older version can exist below.
+		if val == nil && c.OutputLevel >= maxOccupiedLevel {
+			continue // skip writing this tombstone
+		}
 
 		if currentWriter == nil {
 			currentFileNum = e.manifest.NextFileNumber()
 			path := filepath.Join(e.dbDir, fmt.Sprintf("%06d.sst", currentFileNum))
 			w, err := sstable.NewWriter(path, e.blockSize, e.bloomBits)
 			if err != nil {
-				return err
+				return 0, 0, err
 			}
 			currentWriter = w
 			currentSmallest = append([]byte(nil), key...)
@@ -193,7 +202,7 @@ func (e *CompactionExecutor) Execute(c *Compaction) error {
 		}
 
 		if err := currentWriter.Add(key, val); err != nil {
-			return err
+			return 0, 0, err
 		}
 		entriesWritten++
 		currentSize += uint64(len(key) + len(val) + 8) // rough estimate
@@ -201,7 +210,7 @@ func (e *CompactionExecutor) Execute(c *Compaction) error {
 
 		if currentSize >= e.targetSize {
 			if err := finishCurrentFile(); err != nil {
-				return err
+				return 0, 0, err
 			}
 			// Set largest key for the finished file
 			addedFiles[len(addedFiles)-1].LargestKey = append([]byte(nil), lastKey...)
@@ -209,7 +218,7 @@ func (e *CompactionExecutor) Execute(c *Compaction) error {
 	}
 
 	if err := finishCurrentFile(); err != nil {
-		return err
+		return 0, 0, err
 	}
 	if len(addedFiles) > 0 {
 		addedFiles[len(addedFiles)-1].LargestKey = append([]byte(nil), lastKey...)
@@ -217,7 +226,8 @@ func (e *CompactionExecutor) Execute(c *Compaction) error {
 
 	// Prepare VersionEdit
 	edit := &VersionEdit{
-		AddedFiles: addedFiles,
+		AddedFiles:   addedFiles,
+		DeletedFiles: make([]DeletedFile, 0),
 	}
 
 	for i := 0; i < 2; i++ {
@@ -230,7 +240,7 @@ func (e *CompactionExecutor) Execute(c *Compaction) error {
 	}
 
 	if err := e.manifest.Apply(edit); err != nil {
-		return err
+		return 0, 0, err
 	}
 
 	// Delete old files from disk
@@ -244,5 +254,5 @@ func (e *CompactionExecutor) Execute(c *Compaction) error {
 		}
 	}
 
-	return nil
+	return totalBytesIn, totalBytesOut, nil
 }

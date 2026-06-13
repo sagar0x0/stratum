@@ -31,8 +31,8 @@ func TestOneMillion(t *testing.T) {
 	tree, err := NewLSMTree(opts)
 	require.NoError(t, err)
 
-	const numKeys = 100000
-	const flushThreshold = 10000
+	const numKeys = 1000000
+	const flushThreshold = 50000
 
 	mt := memtable.NewMemTable(2 * 1024 * 1024)
 
