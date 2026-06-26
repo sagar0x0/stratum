@@ -62,11 +62,12 @@ func (mt *MemTable) NewIterator() *SkipListIterator {
 
 func (mt *MemTable) ApplyBatch(batch *wal.Batch) error {
 	for _, entry := range batch.Entries {
-		if entry.Op == wal.OpPut {
+		switch entry.Op {
+		case wal.OpPut:
 			if err := mt.Put(entry.Key, entry.Value); err != nil {
 				return err
 			}
-		} else if entry.Op == wal.OpDelete {
+		case wal.OpDelete:
 			if err := mt.Delete(entry.Key); err != nil {
 				return err
 			}

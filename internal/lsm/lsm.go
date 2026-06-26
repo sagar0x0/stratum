@@ -120,7 +120,9 @@ func (l *LSMTree) Flush(mt *memtable.MemTable) error {
 		largest = append([]byte(nil), it.Key()...)
 
 		if err := w.Add(it.Key(), it.Value()); err != nil {
-			w.Close()
+			if cerr := w.Close(); cerr != nil {
+				log.Printf("failed to close SSTable writer: %v", cerr)
+			}
 			return err
 		}
 		numEntries++
@@ -287,7 +289,9 @@ func (l *LSMTree) doCompaction() {
 		for i := 0; i < 2; i++ {
 			for _, f := range c.InputFiles[i] {
 				if r, ok := l.readers[f.FileNum]; ok {
-					r.Close()
+					if cerr := r.Close(); cerr != nil {
+						log.Printf("failed to close reader for file %d: %v", f.FileNum, cerr)
+					}
 					delete(l.readers, f.FileNum)
 				}
 			}
@@ -325,7 +329,9 @@ func (l *LSMTree) Close() error {
 	defer l.mu.Unlock()
 
 	for _, r := range l.readers {
-		r.Close()
+		if err := r.Close(); err != nil {
+			log.Printf("failed to close reader: %v", err)
+		}
 	}
 
 	return l.manifest.Close()

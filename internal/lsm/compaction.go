@@ -26,8 +26,8 @@ type CompactionPicker struct {
 // PickCompaction returns the next compaction to execute, or nil if none needed.
 func (p *CompactionPicker) PickCompaction() *Compaction {
 	// Calculate scores for each level
-	var bestLevel int = -1
-	var bestScore float64 = -1.0
+	var bestLevel = -1
+	var bestScore = -1.0
 
 	for level := 0; level < MaxLevels-1; level++ {
 		score := CompactionScore(level, p.version.Levels[level])
@@ -120,7 +120,7 @@ func (e *CompactionExecutor) Execute(c *Compaction, maxOccupiedLevel int) (int64
 
 	defer func() {
 		for _, r := range readers {
-			r.Close()
+			_ = r.Close()
 		}
 	}()
 

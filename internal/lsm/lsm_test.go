@@ -23,7 +23,7 @@ func TestFlushToL0(t *testing.T) {
 	tree, err := NewLSMTree(opts)
 	require.NoError(t, err)
 	tree.StartCompaction()
-	defer tree.Close()
+	defer func() { require.NoError(t, tree.Close()) }()
 
 	mt := memtable.NewMemTable(1024 * 1024)
 	_ = mt.Put([]byte("key1"), []byte("val1"))
@@ -61,7 +61,7 @@ func TestManifestRecovery(t *testing.T) {
 	// Reopen manifest
 	m2, err := OpenManifest(filepath.Join(dir, "MANIFEST"))
 	require.NoError(t, err)
-	defer m2.Close()
+	defer func() { require.NoError(t, m2.Close()) }()
 
 	v := m2.Current()
 	assert.Equal(t, 1, len(v.Levels[0]))

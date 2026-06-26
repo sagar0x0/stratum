@@ -140,7 +140,7 @@ func (w *Writer) Close() error {
 	w.closed = true
 
 	if err := w.flushBlock(); err != nil {
-		w.file.Close()
+		_ = w.file.Close()
 		return err
 	}
 	return w.file.Close()

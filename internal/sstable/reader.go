@@ -36,33 +36,33 @@ func OpenReader(path string, fileID uint64, cache *BlockCache) (*Reader, error) 
 
 	stat, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, err
 	}
 	fileSize := stat.Size()
 
 	if fileSize < FooterSize {
-		file.Close()
+		_ = file.Close()
 		return nil, ErrCorrupt
 	}
 
 	// Read Footer
 	footerBuf := make([]byte, FooterSize)
 	if _, err := file.ReadAt(footerBuf, fileSize-FooterSize); err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, err
 	}
 
 	footer, ok := DecodeFooter(footerBuf)
 	if !ok {
-		file.Close()
+		_ = file.Close()
 		return nil, ErrCorrupt
 	}
 
 	// Read Index Block
 	indexBuf := make([]byte, footer.IndexHandle.Size)
 	if _, err := file.ReadAt(indexBuf, int64(footer.IndexHandle.Offset)); err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, err
 	}
 
@@ -70,14 +70,14 @@ func OpenReader(path string, fileID uint64, cache *BlockCache) (*Reader, error) 
 	offset := 0
 	for offset < len(indexBuf) {
 		if offset+4 > len(indexBuf) {
-			file.Close()
+			_ = file.Close()
 			return nil, ErrCorrupt
 		}
 		keyLen := int(binary.LittleEndian.Uint32(indexBuf[offset : offset+4]))
 		offset += 4
 
 		if offset+keyLen+16 > len(indexBuf) {
-			file.Close()
+			_ = file.Close()
 			return nil, ErrCorrupt
 		}
 		key := indexBuf[offset : offset+keyLen]
@@ -95,7 +95,7 @@ func OpenReader(path string, fileID uint64, cache *BlockCache) (*Reader, error) 
 	// Read Bloom Filter Block
 	bloomBuf := make([]byte, footer.BloomHandle.Size)
 	if _, err := file.ReadAt(bloomBuf, int64(footer.BloomHandle.Offset)); err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, err
 	}
 

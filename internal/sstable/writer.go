@@ -158,7 +158,7 @@ func (w *Writer) flushDataBlock() error {
 // bloom filter, and footer, and closing the file.
 func (w *Writer) Close() error {
 	if err := w.flushDataBlock(); err != nil {
-		w.file.Close()
+		_ = w.file.Close()
 		return err
 	}
 
@@ -175,7 +175,7 @@ func (w *Writer) Close() error {
 
 	n, err := w.file.Write(indexBuf.Bytes())
 	if err != nil {
-		w.file.Close()
+		_ = w.file.Close()
 		return err
 	}
 	indexSize := uint64(n)
@@ -186,7 +186,7 @@ func (w *Writer) Close() error {
 	bloomData := w.bloom.Encode()
 	n, err = w.file.Write(bloomData)
 	if err != nil {
-		w.file.Close()
+		_ = w.file.Close()
 		return err
 	}
 	bloomSize := uint64(n)
@@ -201,7 +201,7 @@ func (w *Writer) Close() error {
 	}
 
 	if _, err := w.file.Write(footer.Encode()); err != nil {
-		w.file.Close()
+		_ = w.file.Close()
 		return err
 	}
 

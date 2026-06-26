@@ -81,5 +81,5 @@ func TestOneMillion(t *testing.T) {
 	}
 	t.Logf("Read %d keys in %v", numKeys, time.Since(start))
 
-	tree.Close()
+	require.NoError(t, tree.Close())
 }

@@ -20,7 +20,7 @@ func TestDBPutAndGet(t *testing.T) {
 	dir := t.TempDir()
 	db, err := Open(testOptions(dir))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 
 	require.NoError(t, db.Put([]byte("key1"), []byte("value1")))
 
@@ -33,7 +33,7 @@ func TestDBDelete(t *testing.T) {
 	dir := t.TempDir()
 	db, err := Open(testOptions(dir))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 
 	require.NoError(t, db.Put([]byte("key1"), []byte("value1")))
 	require.NoError(t, db.Delete([]byte("key1")))
@@ -56,7 +56,7 @@ func TestDBCrashRecovery(t *testing.T) {
 
 	db2, err := Open(testOptions(dir))
 	require.NoError(t, err)
-	defer db2.Close()
+	defer func() { require.NoError(t, db2.Close()) }()
 
 	_, err = db2.Get([]byte("k1"))
 	assert.Equal(t, ErrNotFound, err)
@@ -70,7 +70,7 @@ func TestDBConcurrentAccess(t *testing.T) {
 	dir := t.TempDir()
 	db, err := Open(testOptions(dir))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 
 	var wg sync.WaitGroup
 

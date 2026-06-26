@@ -106,7 +106,9 @@ func (db *DB) rotateWAL() error {
 	defer db.mu.Unlock()
 
 	db.gc.Stop()
-	db.wal.Close()
+	if err := db.wal.Close(); err != nil {
+		log.Printf("failed to close WAL: %v", err)
+	}
 
 	walPath := filepath.Join(db.opts.Dir, "wal.log")
 	rotatedPath := filepath.Join(db.opts.Dir, fmt.Sprintf("wal_%d.log", time.Now().UnixNano()))
@@ -127,7 +129,9 @@ func (db *DB) rotateWAL() error {
 	db.gc = wal.NewGroupCommitter(w, gcOpts...)
 	db.gc.Start()
 
-	os.Remove(rotatedPath)
+	if err := os.Remove(rotatedPath); err != nil {
+		log.Printf("failed to remove rotated WAL %s: %v", rotatedPath, err)
+	}
 
 	return nil
 }
@@ -192,6 +196,10 @@ func (db *DB) Close() error {
 
 	db.manager.Stop()
 	db.gc.Stop()
-	db.wal.Close()
-	return db.lsm.Close()
+	walErr := db.wal.Close()
+	lsmErr := db.lsm.Close()
+	if lsmErr != nil {
+		return lsmErr
+	}
+	return walErr
 }

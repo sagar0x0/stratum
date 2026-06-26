@@ -41,7 +41,7 @@ func Recover(path string) (*RecoveryResult, error) {
 				readErr = err
 				break
 			}
-			reader.Close()
+			_ = reader.Close()
 			return nil, err
 		}
 
@@ -56,7 +56,7 @@ func Recover(path string) (*RecoveryResult, error) {
 		res.RecordsRead++
 	}
 
-	reader.Close()
+	_ = reader.Close()
 
 	if res.CorruptedAt != -1 || readErr != nil {
 		// Truncate by rewriting the known good batches to a temporary file
@@ -68,15 +68,17 @@ func Recover(path string) (*RecoveryResult, error) {
 		}
 		for _, b := range res.Batches {
 			if err := w.Append(b.Encode()); err != nil {
-				w.Close()
+				_ = w.Close()
 				return nil, err
 			}
 		}
 		if err := w.Sync(); err != nil {
-			w.Close()
+			_ = w.Close()
 			return nil, err
 		}
-		w.Close()
+		if err := w.Close(); err != nil {
+			return nil, err
+		}
 
 		res.RecordsLost = 1 // We lost at least the corrupted one
 		if err := os.Rename(tmpPath, path); err != nil {

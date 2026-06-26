@@ -214,7 +214,7 @@ func (n *Node) sendHeartbeats(cfg Config) {
 	leaderId := n.id
 	n.mu.Unlock()
 
-	var successCount int = 1
+	var successCount = 1
 	var countMu sync.Mutex
 
 	for _, peer := range cfg.Peers {

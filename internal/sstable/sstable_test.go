@@ -30,7 +30,7 @@ func TestSSTableRoundTrip(t *testing.T) {
 	cache := NewBlockCache(1024 * 1024)
 	r, err := OpenReader(path, 1, cache)
 	require.NoError(t, err)
-	defer r.Close()
+	defer func() { require.NoError(t, r.Close()) }()
 
 	for i := 0; i < 1000; i++ {
 		val, found, err := r.Get(keys[i])
@@ -57,7 +57,7 @@ func TestSSTableBloomSkip(t *testing.T) {
 
 	r, err := OpenReader(path, 1, nil)
 	require.NoError(t, err)
-	defer r.Close()
+	defer func() { require.NoError(t, r.Close()) }()
 
 	// Should not read block for missing key
 	val, found, err := r.Get([]byte("key2"))
@@ -80,7 +80,7 @@ func TestSSTableIterator(t *testing.T) {
 
 	r, err := OpenReader(path, 1, nil)
 	require.NoError(t, err)
-	defer r.Close()
+	defer func() { require.NoError(t, r.Close()) }()
 
 	it := r.NewIterator()
 	i := 0
@@ -116,7 +116,7 @@ func TestSSTableTombstones(t *testing.T) {
 
 	r, err := OpenReader(path, 1, nil)
 	require.NoError(t, err)
-	defer r.Close()
+	defer func() { require.NoError(t, r.Close()) }()
 
 	val, found, err := r.Get([]byte("key2"))
 	require.NoError(t, err)

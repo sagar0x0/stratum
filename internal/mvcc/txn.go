@@ -47,7 +47,7 @@ func (tm *TxnManager) MinActiveSnapshot() uint64 {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
 
-	var minTS uint64 = tm.clock.Now()
+	var minTS = tm.clock.Now()
 	for ts := range tm.activeTxns {
 		if ts < minTS {
 			minTS = ts
