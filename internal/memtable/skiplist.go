@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"sync"
 	"sync/atomic"
+
+	"github.com/sagar0x0/stratum/internal/mvcc"
 )
 
 const (
@@ -50,7 +52,7 @@ func (sl *SkipList) Put(key, value []byte) {
 	current := sl.head
 
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.forward[i] != nil && bytes.Compare(current.forward[i].key, key) < 0 {
+		for current.forward[i] != nil && mvcc.CompareKeys(current.forward[i].key, key) < 0 {
 			current = current.forward[i]
 		}
 		update[i] = current
@@ -94,7 +96,7 @@ func (sl *SkipList) Get(key []byte) ([]byte, bool) {
 
 	current := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for current.forward[i] != nil && bytes.Compare(current.forward[i].key, key) < 0 {
+		for current.forward[i] != nil && mvcc.CompareKeys(current.forward[i].key, key) < 0 {
 			current = current.forward[i]
 		}
 	}

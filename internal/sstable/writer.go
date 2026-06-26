@@ -85,7 +85,7 @@ func (w *Writer) flushDataBlock() error {
 	}
 
 	uncompressed := w.blockBuf.Bytes()
-	
+
 	// Compress with LZ4
 	// Ensure lz4Buf is large enough
 	bound := lz4.CompressBlockBound(len(uncompressed))
@@ -95,7 +95,7 @@ func (w *Writer) flushDataBlock() error {
 
 	var compressedSize int
 	var err error
-	
+
 	var compressor lz4.Compressor
 	compressedSize, err = compressor.CompressBlock(uncompressed, w.lz4Buf)
 	if err != nil {
@@ -117,7 +117,7 @@ func (w *Writer) flushDataBlock() error {
 	// Wait, to keep it simple, let's just write [isCompressed(1)][data] and we know the size from the BlockHandle
 	// Oh, BlockHandle size is the total size.
 	// So we can write [isCompressed(1)] followed by data.
-	
+
 	blockHeader := []byte{0}
 	if isCompressed {
 		blockHeader[0] = 1
@@ -126,23 +126,23 @@ func (w *Writer) flushDataBlock() error {
 	if _, err := w.file.Write(blockHeader); err != nil {
 		return err
 	}
-	
+
 	n, err := w.file.Write(dataToWrite)
 	if err != nil {
 		return err
 	}
 
 	blockSize := uint64(1 + n)
-	
+
 	// Record index entry
 	handle := BlockHandle{
 		Offset: w.offset,
 		Size:   blockSize,
 	}
-	
+
 	lastK := make([]byte, len(w.lastKey))
 	copy(lastK, w.lastKey)
-	
+
 	w.indexEntries = append(w.indexEntries, IndexEntry{
 		Key:    lastK,
 		Handle: handle,
@@ -172,7 +172,7 @@ func (w *Writer) Close() error {
 		indexBuf.Write(ie.Key)
 		indexBuf.Write(ie.Handle.Encode())
 	}
-	
+
 	n, err := w.file.Write(indexBuf.Bytes())
 	if err != nil {
 		w.file.Close()
@@ -199,7 +199,7 @@ func (w *Writer) Close() error {
 		NumEntries:  w.entryCount,
 		Magic:       MagicNumber,
 	}
-	
+
 	if _, err := w.file.Write(footer.Encode()); err != nil {
 		w.file.Close()
 		return err

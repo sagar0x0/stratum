@@ -41,7 +41,7 @@ func TestOneMillion(t *testing.T) {
 	for i := 0; i < numKeys; i++ {
 		key := []byte(fmt.Sprintf("key-%08d", i))
 		val := []byte(fmt.Sprintf("val-%08d", i))
-		
+
 		err := mt.Put(key, val)
 		require.NoError(t, err, "memtable put failed, maybe capacity is too small")
 
@@ -67,7 +67,7 @@ func TestOneMillion(t *testing.T) {
 	for i := 0; i < numKeys; i++ {
 		key := []byte(fmt.Sprintf("key-%08d", i))
 		expected := []byte(fmt.Sprintf("val-%08d", i))
-		
+
 		val, found, err := tree.Get(key)
 		if err != nil {
 			t.Fatalf("Error reading key %d: %v", i, err)

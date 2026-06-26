@@ -1,8 +1,9 @@
 package sstable
 
 import (
-	"bytes"
 	"encoding/binary"
+
+	"github.com/sagar0x0/stratum/internal/mvcc"
 )
 
 // Iterator iterates over all key-value pairs in an SSTable.
@@ -31,7 +32,7 @@ func (it *Iterator) Seek(target []byte) {
 	it.loadBlock()
 
 	for it.Valid() {
-		if bytes.Compare(it.Key(), target) >= 0 {
+		if mvcc.CompareKeys(it.Key(), target) >= 0 {
 			break
 		}
 		it.Next()

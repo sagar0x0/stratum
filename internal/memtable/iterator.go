@@ -1,6 +1,6 @@
 package memtable
 
-import "bytes"
+import "github.com/sagar0x0/stratum/internal/mvcc"
 
 type SkipListIterator struct {
 	list    *SkipList
@@ -39,7 +39,7 @@ func (it *SkipListIterator) Seek(target []byte) {
 
 	current := it.list.head
 	for i := it.list.level - 1; i >= 0; i-- {
-		for current.forward[i] != nil && bytes.Compare(current.forward[i].key, target) < 0 {
+		for current.forward[i] != nil && mvcc.CompareKeys(current.forward[i].key, target) < 0 {
 			current = current.forward[i]
 		}
 	}

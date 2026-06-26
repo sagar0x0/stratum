@@ -97,7 +97,7 @@ func TestSSTableIterator(t *testing.T) {
 	assert.True(t, it.Valid())
 	assert.Equal(t, []byte("key-50"), it.Key())
 
-	it.Seek([]byte("key-50.5")) // should point to key-51
+	it.Seek([]byte("key-50x")) // should point to key-51
 	assert.True(t, it.Valid())
 	assert.Equal(t, []byte("key-51"), it.Key())
 }

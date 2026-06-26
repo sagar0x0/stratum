@@ -32,7 +32,7 @@ func benchmarkLSMTree(b *testing.B, random bool, readPercent int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		isRead := rand.Intn(100) < readPercent
-		
+
 		var keyIdx int
 		if random && i > 0 {
 			keyIdx = rand.Intn(i)

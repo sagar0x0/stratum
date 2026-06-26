@@ -1,8 +1,9 @@
 package lsm
 
 import (
-	"bytes"
 	"sort"
+
+	"github.com/sagar0x0/stratum/internal/mvcc"
 )
 
 const (
@@ -15,7 +16,7 @@ const (
 func GetOverlappingFiles(files []FileMetadata, smallest, largest []byte) []FileMetadata {
 	var overlapping []FileMetadata
 	for _, f := range files {
-		if bytes.Compare(f.LargestKey, smallest) >= 0 && bytes.Compare(f.SmallestKey, largest) <= 0 {
+		if mvcc.CompareKeys(f.LargestKey, smallest) >= 0 && mvcc.CompareKeys(f.SmallestKey, largest) <= 0 {
 			overlapping = append(overlapping, f)
 		}
 	}
@@ -25,7 +26,7 @@ func GetOverlappingFiles(files []FileMetadata, smallest, largest []byte) []FileM
 // SortBySmallestKey sorts files by their smallest key.
 func SortBySmallestKey(files []FileMetadata) {
 	sort.Slice(files, func(i, j int) bool {
-		return bytes.Compare(files[i].SmallestKey, files[j].SmallestKey) < 0
+		return mvcc.CompareKeys(files[i].SmallestKey, files[j].SmallestKey) < 0
 	})
 }
 

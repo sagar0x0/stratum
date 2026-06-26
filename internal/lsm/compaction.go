@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/sagar0x0/stratum/internal/mvcc"
 	"github.com/sagar0x0/stratum/internal/sstable"
 )
 
@@ -49,7 +50,7 @@ func (p *CompactionPicker) PickCompaction() *Compaction {
 		// For L0, we must compact all files that overlap.
 		// To be safe, we just take all L0 files.
 		c.InputFiles[0] = append([]FileMetadata(nil), p.version.Levels[0]...)
-		
+
 		// Find overlapping L1 files
 		var smallest, largest []byte
 		for i, f := range c.InputFiles[0] {
@@ -57,10 +58,10 @@ func (p *CompactionPicker) PickCompaction() *Compaction {
 				smallest = f.SmallestKey
 				largest = f.LargestKey
 			} else {
-				if bytes.Compare(f.SmallestKey, smallest) < 0 {
+				if mvcc.CompareKeys(f.SmallestKey, smallest) < 0 {
 					smallest = f.SmallestKey
 				}
-				if bytes.Compare(f.LargestKey, largest) > 0 {
+				if mvcc.CompareKeys(f.LargestKey, largest) > 0 {
 					largest = f.LargestKey
 				}
 			}
@@ -77,7 +78,7 @@ func (p *CompactionPicker) PickCompaction() *Compaction {
 		c.InputFiles[0] = []FileMetadata{largestFile}
 		smallest := c.InputFiles[0][0].SmallestKey
 		largest := c.InputFiles[0][0].LargestKey
-		
+
 		c.InputFiles[1] = GetOverlappingFiles(p.version.Levels[bestLevel+1], smallest, largest)
 	}
 
@@ -86,24 +87,26 @@ func (p *CompactionPicker) PickCompaction() *Compaction {
 
 // CompactionExecutor performs the multi-way merge.
 type CompactionExecutor struct {
-	dbDir       string
-	manifest    *Manifest
-	cache       *sstable.BlockCache
-	blockSize   int
-	bloomBits   int
-	targetSize  uint64
-	rateLimiter *RateLimiter
+	dbDir             string
+	manifest          *Manifest
+	cache             *sstable.BlockCache
+	blockSize         int
+	bloomBits         int
+	targetSize        uint64
+	rateLimiter       *RateLimiter
+	minActiveSnapshot func() uint64
 }
 
-func NewCompactionExecutor(dbDir string, manifest *Manifest, cache *sstable.BlockCache, blockSize, bloomBits int, targetSize uint64, rateLimiter *RateLimiter) *CompactionExecutor {
+func NewCompactionExecutor(dbDir string, manifest *Manifest, cache *sstable.BlockCache, blockSize, bloomBits int, targetSize uint64, rateLimiter *RateLimiter, minActiveSnapshot func() uint64) *CompactionExecutor {
 	return &CompactionExecutor{
-		dbDir:       dbDir,
-		manifest:    manifest,
-		cache:       cache,
-		blockSize:   blockSize,
-		bloomBits:   bloomBits,
-		targetSize:  targetSize,
-		rateLimiter: rateLimiter,
+		dbDir:             dbDir,
+		manifest:          manifest,
+		cache:             cache,
+		blockSize:         blockSize,
+		bloomBits:         bloomBits,
+		targetSize:        targetSize,
+		rateLimiter:       rateLimiter,
+		minActiveSnapshot: minActiveSnapshot,
 	}
 }
 
@@ -159,7 +162,7 @@ func (e *CompactionExecutor) Execute(c *Compaction, maxOccupiedLevel int) (int64
 			}
 			fileSize := currentWriter.Size()
 			totalBytesOut += int64(fileSize)
-			
+
 			addedFiles = append(addedFiles, FileMetadata{
 				Level:       c.OutputLevel,
 				FileNum:     currentFileNum,
@@ -173,15 +176,38 @@ func (e *CompactionExecutor) Execute(c *Compaction, maxOccupiedLevel int) (int64
 	}
 
 	var lastKey []byte
+	var lastUserKey []byte
+	var seenOlderThanMinActive bool
 
 	for mergeIter.SeekToFirst(); mergeIter.Valid(); mergeIter.Next() {
 		key := mergeIter.Key()
 		val := mergeIter.Value()
 
-		// Drop tombstones at the deepest occupied level -
-		// no older version can exist below.
-		if val == nil && c.OutputLevel >= maxOccupiedLevel {
-			continue // skip writing this tombstone
+		var minActive uint64 = 0
+		if e.minActiveSnapshot != nil {
+			minActive = e.minActiveSnapshot()
+		}
+
+		userKey, ts := mvcc.DecodeKey(key)
+
+		if !bytes.Equal(userKey, lastUserKey) {
+			lastUserKey = append(lastUserKey[:0], userKey...)
+			seenOlderThanMinActive = false
+		}
+
+		if ts < minActive {
+			if seenOlderThanMinActive {
+				// We already kept a version older than minActive for this user key.
+				// This version is even older, so no active txn can ever read it.
+				continue
+			}
+			seenOlderThanMinActive = true
+
+			// Drop tombstones at the deepest occupied level -
+			// no older version can exist below, and no active txn needs this tombstone.
+			if val == nil && c.OutputLevel >= maxOccupiedLevel {
+				continue
+			}
 		}
 
 		if currentWriter == nil {

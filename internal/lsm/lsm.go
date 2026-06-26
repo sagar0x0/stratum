@@ -1,7 +1,6 @@
 package lsm
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -10,16 +9,18 @@ import (
 	"time"
 
 	"github.com/sagar0x0/stratum/internal/memtable"
+	"github.com/sagar0x0/stratum/internal/mvcc"
 	"github.com/sagar0x0/stratum/internal/sstable"
 )
 
 type LSMOptions struct {
-	Dir              string
-	BlockSize        int
-	BloomBitsPerKey  int
-	BlockCacheSize   int64
-	CompactionRateMB int
-	L0StallTrigger   int
+	Dir               string
+	BlockSize         int
+	BloomBitsPerKey   int
+	BlockCacheSize    int64
+	CompactionRateMB  int
+	MinActiveSnapshot func() uint64
+	L0StallTrigger    int
 }
 
 // LSMTree orchestrates the components of the LSM-tree.
@@ -73,7 +74,7 @@ func NewLSMTree(opts LSMOptions) (*LSMTree, error) {
 		rateLimiter = NewRateLimiter(int64(opts.CompactionRateMB) * 1024 * 1024)
 	}
 
-	l.compactor = NewCompactionExecutor(opts.Dir, manifest, cache, opts.BlockSize, opts.BloomBitsPerKey, TargetSize(1), rateLimiter)
+	l.compactor = NewCompactionExecutor(opts.Dir, manifest, cache, opts.BlockSize, opts.BloomBitsPerKey, TargetSize(1), rateLimiter, opts.MinActiveSnapshot)
 
 	// Load existing SSTables
 	version := manifest.Current()
@@ -207,10 +208,10 @@ func (l *LSMTree) Get(key []byte) ([]byte, bool, error) {
 			mid := left + (right-left)/2
 			f := files[mid]
 
-			if bytes.Compare(key, f.SmallestKey) >= 0 && bytes.Compare(key, f.LargestKey) <= 0 {
+			if mvcc.CompareKeys(key, f.SmallestKey) >= 0 && mvcc.CompareKeys(key, f.LargestKey) <= 0 {
 				target = &f
 				break
-			} else if bytes.Compare(key, f.SmallestKey) < 0 {
+			} else if mvcc.CompareKeys(key, f.SmallestKey) < 0 {
 				right = mid - 1
 			} else {
 				left = mid + 1

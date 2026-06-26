@@ -3,6 +3,8 @@ package lsm
 import (
 	"bytes"
 	"container/heap"
+
+	"github.com/sagar0x0/stratum/internal/mvcc"
 )
 
 // Iterator represents a generic iterator for KVs.
@@ -26,7 +28,7 @@ type iterHeap []iterHeapItem
 
 func (h iterHeap) Len() int { return len(h) }
 func (h iterHeap) Less(i, j int) bool {
-	cmp := bytes.Compare(h[i].it.Key(), h[j].it.Key())
+	cmp := mvcc.CompareKeys(h[i].it.Key(), h[j].it.Key())
 	if cmp == 0 {
 		// Newest data comes from lower-indexed iterators (e.g. MemTable first, then L0, then L1)
 		return h[i].idx < h[j].idx

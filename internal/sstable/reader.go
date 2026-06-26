@@ -1,7 +1,6 @@
 package sstable
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"os"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/pierrec/lz4/v4"
 	"github.com/sagar0x0/stratum/internal/bloom"
+	"github.com/sagar0x0/stratum/internal/mvcc"
 )
 
 var (
@@ -160,7 +160,7 @@ func (r *Reader) readBlock(handle BlockHandle) ([]byte, error) {
 // findBlockIndex finds the index of the data block that could contain the key
 func (r *Reader) findBlockIndex(key []byte) int {
 	return sort.Search(len(r.indexEntries), func(i int) bool {
-		return bytes.Compare(r.indexEntries[i].Key, key) >= 0
+		return mvcc.CompareKeys(r.indexEntries[i].Key, key) >= 0
 	})
 }
 
@@ -212,7 +212,7 @@ func (r *Reader) Get(key []byte) ([]byte, bool, error) {
 			offset += valLen
 		}
 
-		cmp := bytes.Compare(currentKey, key)
+		cmp := mvcc.CompareKeys(currentKey, key)
 		if cmp == 0 {
 			if isTombstone {
 				return nil, true, nil

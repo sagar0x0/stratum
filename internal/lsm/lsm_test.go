@@ -44,11 +44,11 @@ func TestFlushToL0(t *testing.T) {
 
 func TestManifestRecovery(t *testing.T) {
 	dir := t.TempDir()
-	
+
 	// Create and write to manifest
 	m, err := OpenManifest(filepath.Join(dir, "MANIFEST"))
 	require.NoError(t, err)
-	
+
 	edit := &VersionEdit{
 		AddedFiles: []FileMetadata{
 			{Level: 0, FileNum: 1, FileSize: 100, SmallestKey: []byte("a"), LargestKey: []byte("z"), NumEntries: 10},

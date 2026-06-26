@@ -8,22 +8,22 @@ import (
 
 // CompactionStats tracks metrics related to compaction and write stalls.
 type CompactionStats struct {
-	mu                sync.Mutex
-	BytesCompacted    int64
-	BytesWritten      int64
-	CompactionCount   int64
-	CompactionTimeMs  int64
-	StallTimeMs       int64
+	mu                 sync.Mutex
+	BytesCompacted     int64
+	BytesWritten       int64
+	CompactionCount    int64
+	CompactionTimeMs   int64
+	StallTimeMs        int64
 	pendingCompactions int32
 }
 
 // CompactionStatsSnapshot is a thread-safe copy of CompactionStats.
 type CompactionStatsSnapshot struct {
-	BytesCompacted    int64
-	BytesWritten      int64
-	CompactionCount   int64
-	CompactionTimeMs  int64
-	StallTimeMs       int64
+	BytesCompacted     int64
+	BytesWritten       int64
+	CompactionCount    int64
+	CompactionTimeMs   int64
+	StallTimeMs        int64
 	PendingCompactions int32
 }
 
@@ -59,11 +59,11 @@ func (s *CompactionStats) Snapshot() CompactionStatsSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return CompactionStatsSnapshot{
-		BytesCompacted:    s.BytesCompacted,
-		BytesWritten:      s.BytesWritten,
-		CompactionCount:   s.CompactionCount,
-		CompactionTimeMs:  s.CompactionTimeMs,
-		StallTimeMs:       s.StallTimeMs,
+		BytesCompacted:     s.BytesCompacted,
+		BytesWritten:       s.BytesWritten,
+		CompactionCount:    s.CompactionCount,
+		CompactionTimeMs:   s.CompactionTimeMs,
+		StallTimeMs:        s.StallTimeMs,
 		PendingCompactions: atomic.LoadInt32(&s.pendingCompactions),
 	}
 }

@@ -26,11 +26,11 @@ func NewRateLimiter(bytesPerSec int64) *RateLimiter {
 		stopCh:      make(chan struct{}),
 	}
 	r.cond = sync.NewCond(&r.mu)
-	
+
 	// Refill 10 times a second
 	r.ticker = time.NewTicker(100 * time.Millisecond)
 	go r.refillLoop()
-	
+
 	return r
 }
 
@@ -61,7 +61,7 @@ func (r *RateLimiter) Request(bytes int64) {
 	if r == nil {
 		return
 	}
-	
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -75,7 +75,7 @@ func (r *RateLimiter) Request(bytes int64) {
 			bytes -= r.available
 			r.available = 0
 		}
-		
+
 		r.cond.Wait()
 	}
 }

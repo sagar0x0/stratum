@@ -5,8 +5,8 @@ import (
 )
 
 const (
-	DefaultBlockSize = 4096              // 4 KB data blocks
-	FooterSize       = 48                // Fixed footer size
+	DefaultBlockSize = 4096               // 4 KB data blocks
+	FooterSize       = 48                 // Fixed footer size
 	MagicNumber      = 0x5354524154554D00 // "STRATUM\0"
 )
 
