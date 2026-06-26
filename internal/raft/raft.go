@@ -124,7 +124,7 @@ func (n *Node) startElection(cfg Config) {
 	n.votedFor = n.id
 	
 	// Persist state
-	n.wal.SaveState(n.currentTerm, n.votedFor)
+	_ = n.wal.SaveState(n.currentTerm, n.votedFor)
 
 	term := n.currentTerm
 	lastLogIdx := uint64(len(n.log) - 1)
@@ -195,7 +195,7 @@ func (n *Node) stepDown(term uint64) {
 	n.currentTerm = term
 	n.state = Follower
 	n.votedFor = ""
-	n.wal.SaveState(n.currentTerm, n.votedFor)
+	_ = n.wal.SaveState(n.currentTerm, n.votedFor)
 	n.heartbeatTimer.Stop()
 }
 
@@ -327,7 +327,7 @@ func (n *Node) RequestVote(ctx context.Context, req *pb.RequestVoteRequest) (*pb
 
 		if req.LastLogTerm > lastLogTerm || (req.LastLogTerm == lastLogTerm && req.LastLogIndex >= lastLogIdx) {
 			n.votedFor = req.CandidateId
-			n.wal.SaveState(n.currentTerm, n.votedFor)
+			_ = n.wal.SaveState(n.currentTerm, n.votedFor)
 			resp.VoteGranted = true
 		}
 	}
@@ -359,7 +359,7 @@ func (n *Node) AppendEntries(ctx context.Context, req *pb.AppendEntriesRequest) 
 
 	// Append entries
 	n.log = append(n.log[:req.PrevLogIndex+1], req.Entries...)
-	n.wal.AppendEntries(req.Entries)
+	_ = n.wal.AppendEntries(req.Entries)
 
 	if req.LeaderCommit > n.commitIndex {
 		if req.LeaderCommit < uint64(len(n.log)-1) {

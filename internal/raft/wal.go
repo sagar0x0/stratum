@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"encoding/binary"
 	"path/filepath"
 
 	"google.golang.org/protobuf/proto"
