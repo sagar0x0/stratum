@@ -92,6 +92,56 @@ func (m *Manager) Put(key, value []byte) error {
 	}
 }
 
+func (m *Manager) WriteBatch(b *wal.Batch) error {
+	if err := m.wal.Submit(b.Encode()); err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, e := range b.Entries {
+		for {
+			var err error
+			if e.Op == wal.OpPut {
+				err = m.active.Put(e.Key, e.Value)
+			} else {
+				err = m.active.Delete(e.Key)
+			}
+			
+			if err == nil {
+				if m.active.ShouldFlush() && m.immutable == nil {
+					m.active.Freeze()
+					m.immutable = m.active
+					m.active = NewMemTable(m.maxSize)
+					select {
+					case m.flushCh <- struct{}{}:
+					default:
+					}
+				}
+				break
+			}
+			
+			if err == ErrMemTableFull {
+				if m.immutable != nil {
+					m.cond.Wait()
+					continue
+				}
+				m.active.Freeze()
+				m.immutable = m.active
+				m.active = NewMemTable(m.maxSize)
+				select {
+				case m.flushCh <- struct{}{}:
+				default:
+				}
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *Manager) Get(key []byte) ([]byte, bool) {
 	m.mu.RLock()
 	active := m.active

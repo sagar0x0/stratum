@@ -146,6 +146,16 @@ func (db *DB) Put(key, value []byte) error {
 	return db.manager.Put(key, value)
 }
 
+func (db *DB) WriteBatch(b *wal.Batch) error {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	if db.closed {
+		return ErrClosed
+	}
+
+	return db.manager.WriteBatch(b)
+}
+
 func (db *DB) Get(key []byte) ([]byte, error) {
 	db.mu.RLock()
 	if db.closed {
