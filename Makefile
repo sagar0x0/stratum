@@ -1,4 +1,4 @@
-.PHONY: build test test-cover lint clean proto
+.PHONY: build test test-cover lint clean proto bench docker-build docker-up docker-down profile-cpu profile-mem
 
 build:
 	go build ./...
@@ -21,3 +21,21 @@ proto:
 	    proto/raft/raft.proto \
 	    proto/storage/storage.proto \
 	    proto/client/client.proto
+
+bench:
+	go test -bench=. ./test/bench/...
+
+docker-build:
+	docker compose build
+
+docker-up:
+	docker compose up -d
+
+docker-down:
+	docker compose down
+
+profile-cpu:
+	go test -cpuprofile cpu.prof -bench . ./test/bench/...
+
+profile-mem:
+	go test -memprofile mem.prof -bench . ./test/bench/...
