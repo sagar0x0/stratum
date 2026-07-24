@@ -119,7 +119,6 @@ stratum/
 - [Architecture](docs/architecture/architecture.md)
 - [API Reference](docs/architecture/api.md)
 - [Setup & Deployment](docs/architecture/setup.md)
-- [Presentation](docs/PRESENTATION.md)
 
 ## License
 
