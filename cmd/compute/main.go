@@ -24,7 +24,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to storage node: %v", err)
 	}
-	defer storageClient.Close()
+	defer func() { _ = storageClient.Close() }()
 
 	clock := hlc.NewClock()
 	txnMgr := mvcc.NewTxnManager(clock)
@@ -40,5 +40,5 @@ func main() {
 	<-sigCh
 	log.Println("Shutting down Compute Node...")
 	grpcServer.GracefulStop()
-	lis.Close()
+	_ = lis.Close()
 }

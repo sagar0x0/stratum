@@ -46,7 +46,8 @@ func NewYCSB(db *stratum.DB, numKeys, keySize, valSize int) *YCSB {
 		rnd:     r,
 		bufPool: sync.Pool{
 			New: func() interface{} {
-				return make([]byte, valSize)
+				buf := make([]byte, valSize)
+				return &buf
 			},
 		},
 	}
@@ -55,13 +56,14 @@ func NewYCSB(db *stratum.DB, numKeys, keySize, valSize int) *YCSB {
 func (y *YCSB) Load() error {
 	for i := 0; i < y.numKeys; i++ {
 		key := []byte(fmt.Sprintf("user%0*d", y.keySize-4, i))
-		val := y.bufPool.Get().([]byte)
+		valPtr := y.bufPool.Get().(*[]byte)
+		val := *valPtr
 		y.rnd.Read(val)
 		
 		if err := y.db.Put(key, val); err != nil {
 			return err
 		}
-		y.bufPool.Put(val)
+		y.bufPool.Put(valPtr)
 	}
 	y.recordCount = y.numKeys
 	return nil
@@ -80,10 +82,11 @@ func (y *YCSB) Run(workload Workload, ops int) error {
 				return err
 			}
 		} else if opType < workload.ReadPercent+workload.UpdatePercent {
-			val := y.bufPool.Get().([]byte)
+			valPtr := y.bufPool.Get().(*[]byte)
+			val := *valPtr
 			y.rnd.Read(val)
 			err := y.db.Put(key, val)
-			y.bufPool.Put(val)
+			y.bufPool.Put(valPtr)
 			if err != nil {
 				return err
 			}
@@ -93,7 +96,8 @@ func (y *YCSB) Run(workload Workload, ops int) error {
 				return err
 			}
 			
-			newVal := y.bufPool.Get().([]byte)
+			newValPtr := y.bufPool.Get().(*[]byte)
+			newVal := *newValPtr
 			if val != nil {
 				copy(newVal, val)
 				newVal[0] = ^newVal[0] 
@@ -102,7 +106,7 @@ func (y *YCSB) Run(workload Workload, ops int) error {
 			}
 			
 			err = y.db.Put(key, newVal)
-			y.bufPool.Put(newVal)
+			y.bufPool.Put(newValPtr)
 			if err != nil {
 				return err
 			}
@@ -110,10 +114,11 @@ func (y *YCSB) Run(workload Workload, ops int) error {
 			newKeyIdx := y.recordCount
 			y.recordCount++
 			insertKey := []byte(fmt.Sprintf("user%0*d", y.keySize-4, newKeyIdx))
-			val := y.bufPool.Get().([]byte)
+			valPtr := y.bufPool.Get().(*[]byte)
+			val := *valPtr
 			y.rnd.Read(val)
 			err := y.db.Put(insertKey, val)
-			y.bufPool.Put(val)
+			y.bufPool.Put(valPtr)
 			if err != nil {
 				return err
 			}

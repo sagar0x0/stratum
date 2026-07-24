@@ -20,7 +20,7 @@ func runYCSBBenchmark(b *testing.B, workload Workload, numKeys, ops, keySize, va
 	if err != nil {
 		b.Fatalf("Failed to open DB: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	y := NewYCSB(db, numKeys, keySize, valSize)
 

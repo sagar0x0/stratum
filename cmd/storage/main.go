@@ -25,7 +25,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to open DB: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	grpcServer, lis, err := transport.StartGRPCServer(*addr, db)
 	if err != nil {
@@ -38,5 +38,5 @@ func main() {
 	<-sigCh
 	log.Println("Shutting down Storage Node...")
 	grpcServer.GracefulStop()
-	lis.Close()
+	_ = lis.Close()
 }

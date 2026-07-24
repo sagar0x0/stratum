@@ -34,9 +34,10 @@ var RegisterModel = porcupine.Model{
 		st := state.(string)
 		inp := input.(KvInput)
 		out := output.(KvOutput)
-		if inp.Op == "get" {
+		switch inp.Op {
+		case "get":
 			return out.Value == st, state
-		} else if inp.Op == "put" {
+		case "put":
 			return true, inp.Value
 		}
 		return false, state
@@ -50,17 +51,13 @@ func TestLinearizability(t *testing.T) {
 	addr := "localhost:8000"
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, addr, opts...)
+	conn, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		t.Skipf("Skipping test, compute node not available: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client := pb.NewClientAPIClient(conn)
 	key := []byte("chaos-key")

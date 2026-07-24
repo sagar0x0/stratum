@@ -28,17 +28,13 @@ func main() {
 
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, *addr, opts...)
+	conn, err := grpc.NewClient(*addr, opts...)
 	if err != nil {
 		log.Fatalf("Failed to dial compute node %s: %v", *addr, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client := pb.NewClientAPIClient(conn)
 
